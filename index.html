@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventario · Oficina</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f3f6f8}iframe{display:block;width:100%;height:100%;border:0;visibility:hidden}html[data-desktop-theme="dark"],html[data-desktop-theme="dark"] body{background:#121c29}
+@media(prefers-reduced-motion:no-preference){html.desktop-theme-changing,html.desktop-theme-changing body{transition:background-color 650ms cubic-bezier(.4,0,.2,1)}}
+</style>
+<script>
+let desktopTheme='light';
+try{desktopTheme=localStorage.getItem('inventario.desktop.theme')==='dark'?'dark':'light';}catch(e){}
+document.documentElement.dataset.desktopTheme=desktopTheme;
+</script>
+</head>
+<body>
+<iframe id="inventoryFrame" src="/panel.html" title="Panel del inventario" allow="clipboard-write"></iframe>
+<dialog id="desktopExit" aria-labelledby="desktopExitTitle" aria-describedby="desktopExitDescription">
+  <form method="dialog">
+    <header><span class="exit-label">SALIR DEL PROGRAMA</span><button class="exit-x" aria-label="Seguir trabajando" value="cancel">×</button></header>
+    <h2 id="desktopExitTitle">¿Cerrar Inventario?</h2>
+    <p id="desktopExitDescription">Los registros que ya guardaste permanecerán en esta PC.</p>
+    <div class="exit-warning"><strong>Antes de salir</strong><p>Los formularios y cambios de estructura sin guardar se perderán. Vuelve al programa si necesitas guardarlos.</p></div>
+    <p id="desktopExitServer">La PC dejará de recibir registros de los celulares hasta que vuelvas a abrir Inventario. Los envíos pendientes permanecerán en cada celular.</p>
+    <p id="desktopExitError" role="alert" hidden></p>
+    <footer><button id="desktopExitCancel" value="cancel" autofocus>Seguir trabajando</button><button id="desktopExitConfirm" type="button">Cerrar Inventario</button></footer>
+  </form>
+</dialog>
+<style>
+#desktopExit{box-sizing:border-box;width:min(540px,calc(100vw - 40px));max-height:calc(100vh - 40px);padding:30px;border:1px solid #b8c8d5;border-radius:20px;background:#f3f6f8;color:#24334a;box-shadow:0 24px 80px #08152555;font:15px/1.6 'Segoe UI',Arial,sans-serif;}
+#desktopExit::backdrop{background:#07152599;backdrop-filter:blur(5px);}
+#desktopExit header{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+#desktopExit .exit-label{font-size:11px;font-weight:700;letter-spacing:.12em;color:#526c80;}
+#desktopExit h2{font-size:28px;line-height:1.25;margin:16px 0 12px;letter-spacing:-.03em;}
+#desktopExit p{margin:8px 0;color:#52677b;}
+#desktopExit .exit-warning{margin:22px 0 16px;padding:16px 18px;border:1px solid #d4b778;border-left:4px solid #b88726;border-radius:10px;background:#fff1d5;}
+#desktopExit .exit-warning strong,#desktopExit .exit-warning p{color:#6c4d17;}
+#desktopExit footer{display:flex;gap:12px;justify-content:flex-end;margin-top:26px;padding-top:20px;border-top:1px solid #c4d0da;}
+#desktopExit button{font:600 14px 'Segoe UI',Arial,sans-serif;cursor:pointer;border:1px solid #a8bac9;border-radius:9px;padding:12px 16px;background:#e3ebf1;color:#29465b;}
+#desktopExit button:focus-visible{outline:3px solid #1c9581;outline-offset:3px;}
+#desktopExit .exit-x{border:0;background:transparent;font-size:25px;padding:0 10px;}
+#desktopExit #desktopExitConfirm{background:#a72e43;color:#fff;border-color:#a72e43;}
+#desktopExit #desktopExitConfirm:hover{background:#8b2436;}
+#desktopExit button:disabled{opacity:.5;cursor:wait;}
+html[data-desktop-theme="dark"] #desktopExit{background:#1c293a;color:#e0e8f2;border-color:#42586c;}
+html[data-desktop-theme="dark"] #desktopExit p,html[data-desktop-theme="dark"] #desktopExit .exit-label{color:#b7c7d7;}
+html[data-desktop-theme="dark"] #desktopExit .exit-warning{background:#3c321f;border-color:#997a3c;}
+html[data-desktop-theme="dark"] #desktopExit .exit-warning :is(strong,p){color:#f2d69a;}
+html[data-desktop-theme="dark"] #desktopExit button:not(#desktopExitConfirm){background:#293e52;color:#dfebf7;border-color:#526b82;}
+html[data-desktop-theme="dark"] #desktopExit footer{border-color:#42586c;}
+</style>
+<script>
+window.showDesktopExit=function(ownsServer){
+ const dialog=document.getElementById('desktopExit');
+ document.getElementById('desktopExitServer').hidden=!ownsServer;
+ document.getElementById('desktopExitError').hidden=true;
+ if(!dialog.open){dialog.showModal();document.getElementById('desktopExitCancel').focus();}
+ return true;
+};
+document.getElementById('desktopExitConfirm').onclick=async function(){
+ this.disabled=true;
+ try{if(!window.pywebview?.api?.confirm_exit)throw new Error();await window.pywebview.api.confirm_exit();}
+ catch(error){const message=document.getElementById('desktopExitError');message.textContent='No se pudo cerrar. Inténtalo nuevamente.';message.hidden=false;this.disabled=false;}
+};
+</script>
+<template id="settingsTemplate">
+  <section id="desktopSettings" hidden aria-label="Configuración de la aplicación">
+    <section id="updatesPage" hidden aria-labelledby="updatesTitle">
+      <div class="desktop-heading"><p class="eyebrow">MANTENIMIENTO DEL PROGRAMA</p><h1 id="updatesTitle">Actualizaciones</h1><p>Instala mejoras de diseño y funciones desde un archivo, sin desinstalar.</p></div>
+      <article class="desktop-card"><h2>Versión instalada</h2><p id="installedRelease">Consultando versión…</p><p id="lastUpdateResult" role="status"></p></article>
+      <article class="desktop-card"><h2>Actualizar desde un archivo</h2><p>Selecciona el ZIP de actualización desde esta PC o una memoria USB, por ejemplo Inventario-actualizacion-3.5.1.zip. Se comprobará su firma antes de instalar.</p>
+        <button id="chooseUpdate" class="ghost-button">Seleccionar archivo ZIP</button>
+        <div id="updatePreview" hidden><h3 id="availableRelease"></h3><p id="updateNotes"></p><p>Se respaldarán tus datos, usuarios y configuración. Guarda los formularios abiertos: el programa se cerrará durante la instalación y volverá a abrirse al terminar.</p><p>Los celulares podrán enviar sus pendientes cuando esta PC vuelva a estar disponible.</p><button id="installUpdate" class="primary-button">Instalar y reiniciar</button></div>
+        <p id="updateMessage" role="status" aria-live="polite"></p>
+      </article>
+    </section>
+    <section id="connectionsPage" hidden aria-labelledby="connectionsTitle">
+      <div class="desktop-heading"><p class="eyebrow">APLICACIÓN DE ESCRITORIO</p><h1 id="connectionsTitle">Conexiones</h1><p>Vincula esta PC con los celulares de tus almacenes.</p></div>
+      <article class="desktop-card"><h2>Conectar las APK</h2><p id="description">Comprobando la red privada de esta PC…</p><div class="desktop-address"><strong id="address">Sin dirección disponible</strong><button id="copy" class="ghost-button" hidden>Copiar dirección</button></div><div class="desktop-actions"><button id="link" class="primary-button" data-action-tone="info">Vincular Tailscale</button><button id="configure" class="ghost-button">Configurar acceso remoto</button></div></article>
+      <article class="desktop-card"><h2>Preparar un celular</h2><ol><li>Instala Tailscale y autoriza el celular en la misma red privada de la oficina.</li><li>Instala la APK de Inventario. En <strong>Mi cuenta → Configurar servidor</strong>, pega la dirección de esta PC.</li><li>Inicia sesión con la cuenta del trabajador y descarga el catálogo y el mes habilitado antes de salir sin Internet.</li></ol><p>Los pendientes se envían al recuperar conexión; Android puede retrasarlos por ahorro de batería. Antes de cambiar la dirección de una APK, sincroniza los pendientes de su dirección anterior.</p><button id="apk" class="ghost-button">Ver APK para instalar</button></article>
+    </section>
+    <section id="verificationPage" hidden aria-labelledby="verificationTitle">
+      <div class="desktop-heading"><p class="eyebrow">ESTADO DE ESTA PC</p><h1 id="verificationTitle">Verificación</h1><p>Comprueba que la oficina esté preparada para recibir registros.</p></div>
+      <div class="desktop-status-grid"><article class="desktop-card"><h2>Servidor de inventario</h2><span id="server" class="desktop-badge">Comprobando servidor…</span><p>Recibe los conteos y guarda los datos en esta PC.</p></article><article class="desktop-card"><h2>Red privada · Tailscale</h2><span id="vpn" class="desktop-badge">Comprobando Tailscale…</span><p>Conecta los almacenes aunque utilicen otras redes o datos móviles.</p></article></div>
+      <article class="desktop-card"><h2>Disponibilidad de la conexión</h2><p id="detail">Comprobando los equipos de la red…</p><p>Mantén esta aplicación abierta, la PC encendida y Tailscale conectado mientras los celulares envían registros.</p><div class="desktop-actions"><button id="check" class="primary-button" data-action-tone="info">Comprobar ahora</button><span id="checkedAt" role="status">La comprobación se actualiza automáticamente.</span></div></article>
+    </section>
+    <section id="movementsPage" hidden aria-labelledby="movementsTitle">
+      <div class="desktop-heading"><p class="eyebrow">DURANTE EL INVENTARIO</p><h1 id="movementsTitle">Movimientos</h1><p>Registra los productos que llegan o salen a última hora mientras el equipo está contando.</p></div>
+      <label class="desktop-movement-period">Inventario<select id="desktopMovementRun"></select></label>
+      <div class="desktop-movement-layout">
+        <article class="desktop-card"><h2>Registrar entrada o salida</h2>
+          <p>Registra la mercadería que permanece sin ubicar ni repartir. El saldo de estas entradas y salidas se incluye en el inventario del almacén y en el apartado «No ubicados / repartidos» del Excel.</p>
+          <form id="desktopMovementForm">
+            <label>Almacén<select id="desktopMovementWarehouse" required></select></label>
+            <label>Buscar producto<input id="desktopMovementSearch" type="search" placeholder="Nombre o código" autocomplete="off" aria-controls="desktopMovementResults"></label>
+            <p id="desktopMovementMatches" role="status" hidden></p>
+            <div id="desktopMovementResults" class="desktop-movement-results" aria-label="Productos encontrados" hidden></div>
+            <label>Producto<select id="desktopMovementProduct" required></select></label>
+            <div class="two-columns"><label>Movimiento<select id="desktopMovementType"><option value="in">Entrada</option><option value="out">Salida</option></select></label><label>Cantidad que entra o sale<input id="desktopMovementQuantity" type="number" min="0.00000001" max="1000000000" step="any" required></label></div>
+            <label>Motivo<input id="desktopMovementReason" minlength="5" maxlength="300" placeholder="Ej.: llegó una entrega durante el conteo" required></label>
+            <p id="desktopMovementPreview" class="desktop-movement-preview" role="status"></p>
+            <p id="desktopMovementError" class="form-error hidden" role="alert"></p>
+            <p id="desktopMovementStatus" role="status"></p>
+            <button id="desktopMovementSave" class="primary-button" type="submit">Registrar entrada</button>
+          </form>
+        </article>
+        <aside class="desktop-card desktop-movement-history" aria-labelledby="desktopMovementHistoryTitle"><div class="runs-audit-heading"><h2 id="desktopMovementHistoryTitle">Historial de movimientos del administrador</h2><span id="desktopMovementHistoryCount"></span></div><p>Entradas y salidas por almacén, con responsable, fecha, motivo y saldo sin ubicar.</p><button id="desktopMovementReload" class="ghost-button" type="button">Actualizar historial y conteos</button><div id="desktopMovementHistory" class="runs-audit" aria-live="polite"></div></aside>
+      </div>
+    </section>
+    <p id="notice" class="desktop-notice" hidden role="status"></p>
+  </section>
+</template>
+<template id="settingsStyles"><style>
+  #desktopSettings{padding:29px 34px 40px;max-width:1250px;margin:auto;color:#183348}
+  #desktopSettings [hidden],#desktopSettings[hidden]{display:none!important}
+  .desktop-settings-open .main-column>.main-content{display:none}
+  .desktop-module-open .main-column>.main-content{display:none}
+  html:has(body.desktop-module-open),body.desktop-module-open{overflow:hidden}
+  body:not(.worker-mode).desktop-module-open .main-column>.runs-page{position:relative;inset:auto;width:100%;max-width:none;height:calc(100dvh - var(--desktop-topbar-bottom,73px));margin:0;overflow:auto;overscroll-behavior:contain;z-index:auto;border-radius:0}
+  #warehouseEditorClose.desktop-editor-root{display:none}
+  .desktop-movement-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,1fr);gap:20px;align-items:start}
+  .desktop-movement-period{margin-bottom:20px}.desktop-movement-history{position:sticky;top:90px;max-height:calc(100dvh - 110px);overflow:auto}
+  .desktop-movement-history article{padding:18px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.desktop-movement-history article strong{font-size:14px}.desktop-movement-history article p{margin:7px 0}.desktop-movement-preview{padding:14px;border-radius:8px;background:#eef8f3}
+  #desktopMovementStatus{color:#23795f}
+  .desktop-movement-results{display:grid;gap:6px;max-height:240px;overflow:auto;margin-bottom:16px}
+  .desktop-movement-results button{display:flex;align-items:center;justify-content:flex-start;gap:14px;min-height:86px;padding:10px;text-align:left;white-space:normal;overflow-wrap:anywhere;width:100%;flex-shrink:0}
+  .desktop-movement-results .product-photo{width:62px;height:62px;flex:0 0 62px;background:#fff;color:#7c8986}
+  .desktop-movement-product-info{display:grid;gap:6px;min-width:0}
+  .desktop-movement-product-info strong{font-size:14px;line-height:1.4;color:#40566d}
+  .desktop-movement-product-info small{font-size:12px;font-weight:400;line-height:1.4;color:#6c7e92}
+  @media(max-width:1100px){.desktop-movement-layout{grid-template-columns:minmax(0,1fr)}.desktop-movement-history{position:static;max-height:none}}
+  .desktop-heading{margin-bottom:26px}.desktop-heading .eyebrow{font-size:9px;letter-spacing:.13em;color:#8391a3;margin-bottom:7px}.desktop-heading h1{font-size:32px;letter-spacing:-.03em;margin:0 0 9px}.desktop-heading>p:last-child{font-size:13px;color:#77869a;line-height:1.6}
+  .desktop-card{padding:25px 27px;border:1px solid #e1e7ee;border-radius:12px;background:white;margin-bottom:20px;box-shadow:0 3px 16px #20304704}.desktop-card h2{font-size:16px;margin:0 0 14px}.desktop-card p,.desktop-card li{font-size:13px;line-height:1.8;color:#6c7e92}.desktop-card p{margin:12px 0}.desktop-card ol{padding-left:20px;margin:12px 0 18px}.desktop-card li+li{margin-top:9px}.desktop-address{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:16px 18px;margin:18px 0 20px;border-radius:9px;background:#f1f7f6;border:1px solid #d6e9e4}.desktop-address strong{font-size:17px;user-select:all;overflow-wrap:anywhere}.desktop-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.desktop-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.desktop-badge{display:inline-flex;padding:8px 13px;border-radius:20px;font-size:12px;font-weight:600;background:#edf1f5;color:#5d6f84}.desktop-badge.good{background:#e4f5ed;color:#23795f}.desktop-badge.warn{background:#fff1d6;color:#946517}#checkedAt{font-size:11px;color:#8592a3}.desktop-notice{padding:15px 18px;border-radius:9px;border:1px solid #d8e9e2;background:#eef8f3;font-size:13px;color:#326855;line-height:1.6}.desktop-notice.error{background:#fff2e6;border-color:#f0d4b4;color:#97592b}
+  @media(max-width:1000px){#desktopSettings{padding:25px 24px}.desktop-status-grid{grid-template-columns:1fr;gap:0}.desktop-address{flex-wrap:wrap}}
+  /* Shared desktop scale: page titles, section titles, body, controls and captions. */
+  html[data-desktop-theme]{--desktop-body:14px;--desktop-caption:12px;--desktop-title:28px;--desktop-section:18px;--desktop-gap:24px}
+  html[data-desktop-theme] body:not(.worker-mode){font-family:"Segoe UI",Arial,sans-serif;font-size:var(--desktop-body);line-height:1.5}
+  html[data-desktop-theme] body:not(.worker-mode) :is(button,input,select,textarea){font-family:inherit;font-size:var(--desktop-body);line-height:1.5}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.page-heading h1,.runs-heading h1,.desktop-heading h1,#warehouseEditorTitle,#productManager h1){font-size:var(--desktop-title);font-weight:700;line-height:1.25;letter-spacing:-.025em}
+  html[data-desktop-theme] body:not(.worker-mode) #productManager .window-titlebar h1{font-size:16px!important;letter-spacing:0}
+  html[data-desktop-theme] body:not(.worker-mode) #productManager .manager-heading-actions{margin-left:auto;flex:none} html[data-desktop-theme] #productManager .manager-heading-actions .primary-button{--button-bg:#354fba;--button-hover:#293fa0;--button-border:#354fba;--button-ink:#fff;background:#354fba!important;border-color:#354fba!important;color:#fff!important;box-shadow:none}
+
+  html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings,.floating-window) h2{font-size:var(--desktop-section);line-height:1.35;letter-spacing:-.015em}
+  html[data-desktop-theme] body:not(.worker-mode) h2#warehouseEditorTitle{font-size:var(--desktop-title)}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings,.floating-window) :is(p,li,label,td){font-size:var(--desktop-body);line-height:1.6}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings,.floating-window) :is(small,.muted-note,.runs-help,th,.eyebrow){font-size:var(--desktop-caption);line-height:1.5}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.side-nav a,.breadcrumb,.sync-banner,.desktop-badge){font-size:var(--desktop-body)}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.today-label,.nav-label,.side-footer strong,.side-footer div>span,.workspace-switch strong,.workspace-switch div>span,#checkedAt){font-size:var(--desktop-caption)}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.table-footer,.table-help,.table-live,.product-sku,.product-category,.metric-heading,.count-badge,.nav-count,.sidebar-tip p,.login-top-note,.login-bottom-note,.hint-label,.login-hint,.story-footer){font-size:var(--desktop-caption);line-height:1.5}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.primary-button,.ghost-button,input:not([type=checkbox]):not([type=radio]),select){min-height:42px;border-radius:8px}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.primary-button,.ghost-button){white-space:normal;overflow-wrap:anywhere}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.page-heading,.runs-heading,.desktop-heading){gap:16px;margin-bottom:var(--desktop-gap);flex-wrap:wrap}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.page-heading,.runs-heading,.desktop-heading)>div{min-width:0}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.page-actions,.runs-buttons){flex-wrap:wrap}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.desktop-card,.management-backups){padding:var(--desktop-gap);border-radius:12px}
+  html[data-desktop-theme] body:not(.worker-mode) #desktopSettings{max-width:1800px}
+  html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings,.floating-window) .eyebrow{font-size:var(--desktop-caption)}
+  @media(max-width:1100px){html[data-desktop-theme]{--desktop-gap:20px}.top-actions{flex-wrap:wrap}}
+  /* Every office page uses the same open heading as Verification. */
+  html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings){padding:29px 34px 40px;background:var(--bg)}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading{display:flex;flex-direction:row;align-items:flex-start!important;justify-content:space-between;position:static;gap:16px;margin:0 0 26px;padding:0;border:0;background:transparent;box-shadow:none;flex-wrap:wrap}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading-copy{flex:1;min-width:0}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading .eyebrow{font-size:12px;line-height:1.5;letter-spacing:.13em;color:#8391a3;margin:0 0 7px}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading :is(h1,h2#warehouseEditorTitle){font-size:28px;line-height:1.25;font-weight:700;letter-spacing:-.025em;margin:0 0 9px;color:var(--ink);outline:none}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading .office-heading-copy>p:last-child:not(.eyebrow){font-size:14px;line-height:1.6;font-weight:400;color:#77869a;margin:0}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading>button{order:0;align-self:flex-start}
+  html[data-desktop-theme] body:not(.worker-mode) .office-heading .editor-navigation-actions{padding-top:22px}
+  html[data-desktop-theme] body:not(.worker-mode) #warehouseEditor>.office-heading{position:sticky;top:calc(-1 * var(--page-padding-top));z-index:4;background:var(--bg);padding:16px 0;}
+  @media(max-width:1000px){html[data-desktop-theme] body:not(.worker-mode) :is(.main-content,.runs-page,#desktopSettings){padding:25px 24px 40px}}
+  /* Compact assignment counters leave the workspace to the space selector. */
+  html[data-desktop-theme] #assignmentWindow .assignment-context{margin:4px 0 12px}
+  html[data-desktop-theme] #assignmentStats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  html[data-desktop-theme] #assignmentStats .assignment-stat{flex-direction:row;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);border-left-width:3px}
+  html[data-desktop-theme] #assignmentStats .assignment-stat.available{border-left-color:#369980}
+  html[data-desktop-theme] #assignmentStats .assignment-stat.reserved{border-left-color:#6485d8}
+  html[data-desktop-theme] #assignmentStats .assignment-stat.completed{border-left-color:#9b85ba}
+  html[data-desktop-theme] #assignmentStats .assignment-stat strong{font-size:18px;line-height:1.2;font-variant-numeric:tabular-nums}
+  html[data-desktop-theme] #assignmentStats .assignment-stat span{font-size:12px;line-height:1.4}
+  html[data-desktop-theme] #assignmentWindow .assignment-layout{gap:20px}
+  html[data-desktop-theme] #assignmentWindow .assignment-card{padding:20px;border-radius:12px}
+  html[data-desktop-theme] #assignmentWindow .assignment-card-heading p{margin-bottom:16px}
+  html[data-desktop-theme] #assignmentWindow .assignment-company-tab{flex-basis:220px;padding:10px;border-radius:9px;gap:10px}
+  html[data-desktop-theme] #assignmentWindow .assignment-company-image{width:44px;height:44px;border-radius:8px}
+  html[data-desktop-theme] #assignmentWindow .assignment-company-copy{gap:3px}
+  html[data-desktop-theme] #assignmentWindow .assignment-company-initials{font-size:18px}
+  html[data-desktop-theme] #assignmentLegend{gap:8px;margin:4px 0 16px;padding:12px 0;border-block:1px solid var(--line)}
+  html[data-desktop-theme] #assignmentLegend>span{padding:5px 8px;background:var(--surface-soft);border:1px solid var(--line);border-radius:6px;font-size:12px}
+  html[data-desktop-theme] #assignmentWindow .assignment-company{border-radius:9px}
+  html[data-desktop-theme] #assignmentWindow .assignment-warehouse{padding:16px}
+  html[data-desktop-theme] #assignmentWindow .assignment-space-grid .assignment-space{padding:12px;gap:7px 10px;border:1px solid var(--space-color);border-left:5px solid var(--space-color);border-radius:8px;background:color-mix(in srgb,var(--space-color) 22%,var(--surface))}
+  html[data-desktop-theme] #assignmentWindow .assignment-space-grid .assignment-space:has(input:checked){outline:2px solid var(--space-color);outline-offset:1px;background:color-mix(in srgb,var(--space-color) 34%,var(--surface))}
+  html[data-desktop-theme] #assignmentWindow .assignment-space-grid .assignment-space.assignment-review,
+  html[data-desktop-theme] #assignmentWindow .assignment-space-grid .assignment-space.assignment-review:has(input:checked){background-image:var(--assignment-review-pattern)}
+  html[data-desktop-theme] #assignmentWindow .assignment-space-copy{display:grid;gap:5px}
+  html[data-desktop-theme] #assignmentWindow .assignment-space-copy strong{color:var(--ink)}
+  html[data-desktop-theme] #assignmentWindow .assignment-settings{gap:14px}
+  html[data-desktop-theme] #assignmentWindow .assignment-notice{padding:10px 14px;border-radius:8px;margin-bottom:18px;align-items:center}
+  html[data-desktop-theme] #assignmentWindow .assignment-notice summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink)}
+  html[data-desktop-theme] #assignmentWindow .assignment-notice details p{margin:8px 0 0;font-size:13px}
+  /* Management: separate daily work, lifecycle controls and supporting tools. */
+  html[data-desktop-theme] #managementHistory{margin:0 0 24px;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+  html[data-desktop-theme] #managementHistoryTitle{margin:0 0 16px;color:var(--ink)}
+  html[data-desktop-theme] #managementHistory .runs-list{margin:0;max-height:none;overflow:visible;grid-template-columns:1fr}
+  html[data-desktop-theme] #managementHistory article{padding:16px;border-radius:8px;background:var(--surface-soft);border-color:var(--line)}
+  html[data-desktop-theme] #managementHistory article h2{font-size:16px;margin:0}
+  html[data-desktop-theme] #managementHistory .runs-help{margin:0;color:var(--muted)}
+  html[data-desktop-theme] body:not(.worker-mode) #runsPage{padding-bottom:40px}
+  html[data-desktop-theme] body:not(.worker-mode) #runsPage>.office-heading{margin-bottom:16px}
+  html[data-desktop-theme] body:not(.worker-mode) #runsConnection{padding:9px 14px;margin:0 0 20px;border-radius:8px;font-size:12px}
+  html[data-desktop-theme] body:not(.worker-mode) #managementActive{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 28px;padding:24px;margin:0 0 24px;border-radius:12px;background:var(--surface)}
+  html[data-desktop-theme] body:not(.worker-mode) #managementActive h2{font-size:22px;color:var(--ink);margin:6px 0 10px;overflow-wrap:anywhere}
+  #managementActive .eyebrow{margin:0;color:var(--muted);letter-spacing:.12em}
+  #managementActiveInfo{margin:0}
+  #managementActive>.runs-buttons{margin:0;align-self:center;justify-content:flex-end}
+  .desktop-run-controls{grid-column:1/-1;display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap}
+  .desktop-run-controls>span{margin-right:auto;font-size:12px;color:var(--muted)}
+  html[data-desktop-theme] .desktop-run-controls button{min-height:36px;font-size:12px}
+  .desktop-management-support{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start;margin-top:24px}
+  .desktop-management-support:has(>#runsPeoplePanel.hidden):has(>#backupsPanel.hidden){display:none}
+  html[data-desktop-theme] body:not(.worker-mode) .desktop-management-support>section{min-width:0;margin:0;padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+  .desktop-management-support .runs-people-heading{margin:0 0 18px;gap:12px;align-items:center;flex-wrap:wrap}
+  html[data-desktop-theme] .desktop-management-support h2{margin:0;color:var(--ink)}
+  .desktop-management-support #runsPeople>.runs-help{margin:0;padding:18px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-soft);color:var(--muted)}
+  .desktop-management-support #runsOfflinePanel{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .desktop-management-support summary{cursor:pointer;color:var(--ink);font-size:13px;line-height:1.6}
+  html[data-desktop-theme] .desktop-management-support #backupsCountdown{font-size:12px;padding:0;background:transparent;color:var(--muted);font-weight:400}
+  .desktop-management-support #backupsPanel>.runs-people-heading{align-items:flex-start;flex-direction:column;gap:8px}
+  .desktop-management-support #backupsPanel>.runs-buttons{margin:18px 0;gap:8px}
+  .desktop-management-support #backupsHistory{border-top:1px solid var(--line);padding-top:16px}
+  .desktop-backup-info p{color:var(--muted);margin:10px 0;overflow-wrap:anywhere}
+  html[data-desktop-theme] body:not(.worker-mode) #runsCreate{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:24px}
+  @media(max-width:1200px){.desktop-management-support{grid-template-columns:1fr}html[data-desktop-theme] body:not(.worker-mode) #managementActive{grid-template-columns:1fr}#managementActive>.runs-buttons{justify-content:flex-start}}
+</style></template>
+<script src="/desktop-sales.js"></script>
+<script>
+const frame=document.getElementById('inventoryFrame');let panelDoc=null,checking=false,currentPage=null;
+const $=id=>panelDoc?.getElementById(id);
+function showPage(page){
+  if(!panelDoc)return;currentPage=page;
+  $('desktopSettings').hidden=!page;$('connectionsPage').hidden=page!=='connections';$('verificationPage').hidden=page!=='verification';$('movementsPage').hidden=page!=='movements';$('updatesPage').hidden=page!=='updates';if($('salesPage'))$('salesPage').hidden=page!=='sales';
+  if($('erpPage'))$('erpPage').hidden=!page?.startsWith('erp-');
+  if($('workspacePage'))$('workspacePage').hidden=!page?.startsWith('hub-');
+  panelDoc.body.classList.toggle('desktop-settings-open',!!page);$('notice').hidden=true;
+  syncSections();
+  if(page?.startsWith('hub-')){loadWorkspace(page.slice(4));return;}
+  if(page?.startsWith('erp-')){frame.contentWindow.scrollTo(0,0);$('erpTitle').focus({preventScroll:true});loadERP(page);return;}
+  if(!page)frame.contentWindow.renderCharts();
+  if(page){frame.contentWindow.scrollTo(0,0);$(page==='sales'?'salesTitle':page==='connections'?'connectionsTitle':page==='verification'?'verificationTitle':page==='updates'?'updatesTitle':'movementsTitle').focus({preventScroll:true});if(page==='sales')loadSales();else if(page==='movements')loadMovements();else if(page==='updates')refreshUpdates();else refresh();}
+}
+function syncSections(){
+  if(!panelDoc)return;
+  if(panelDoc.body.classList.contains('desktop-home-open'))return;
+  const modules=[['workersWindow','openWorkers','Personal'],['assignmentWindow','openAssignmentsAdmin','Asignar Espacios'],['warehouseEditor','openWarehouseEditor','Editor de almacén'],['runsPage','openRunsAdmin','Gestión'],['productManager','openProductManager','Gestor de productos']];
+  const module=!$('appShell').classList.contains('hidden')&&!panelDoc.body.classList.contains('worker-mode')&&modules.find(([id])=>!$(id).classList.contains('hidden'));
+  panelDoc.body.classList.toggle('desktop-module-open',!!module&&!currentPage);
+  const label=currentPage?.startsWith('erp-')?panelDoc.querySelector(`[data-desktop-page="${currentPage}"] span`)?.textContent:currentPage==='sales'?'Ventas':currentPage==='connections'?'Conexiones':currentPage==='verification'?'Verificación':currentPage==='updates'?'Actualizaciones':currentPage==='movements'?'Movimientos':module?module[2]:'Inventario';
+  const breadcrumb=panelDoc.querySelector('.breadcrumb strong');if(breadcrumb)breadcrumb.textContent=label;
+  panelDoc.querySelectorAll('.side-nav a').forEach(link=>{
+    const active=currentPage?link.dataset.desktopPage===currentPage:module?link.id===module[1]:link.getAttribute('href')==='#inventoryArea';
+    link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+  });
+  window.syncWorkspaceNavigation?.();
+}
+let movementDetail=null,movementProducts=[],movementBalances=[],movementLoading=0,movementSaving=false,movementReady=false,movementOperation=null,movementSignature=null;
+const desktopApi=(path,method='GET',body)=>frame.contentWindow.api(path,method,body);
+function movementError(error){$('desktopMovementError').textContent=error.message||String(error);$('desktopMovementError').classList.remove('hidden');}
+function fillMovementProducts(){
+  const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/\s+/g,' ').trim();
+  const select=$('desktopMovementProduct'),previous=select.value,query=normalize($('desktopMovementSearch').value);
+  const matches=movementProducts.filter(p=>!query||normalize(p.name+' '+(p.sku||'')).includes(query));
+  const visible=matches.slice(0,100),selected=matches.find(p=>p.key===previous);
+  if(selected&&!visible.includes(selected))visible.push(selected);
+  select.replaceChildren(new Option('Selecciona el producto…',''));
+  const results=$('desktopMovementResults'),status=$('desktopMovementMatches');results.replaceChildren();
+  for(const p of visible){
+    const label=p.name+(p.sku?' · '+p.sku:'');select.add(new Option(label,p.key));
+    if(query){
+      const button=panelDoc.createElement('button');button.type='button';button.className='ghost-button';button.disabled=movementSaving;button.setAttribute('aria-label',label);
+      const photo=frame.contentWindow.productPhoto(p)||panelDoc.createElement('span');
+      if(!photo.className){photo.className='product-photo photo-unavailable';photo.textContent='Sin foto';}
+      const info=panelDoc.createElement('span');info.className='desktop-movement-product-info';
+      const name=panelDoc.createElement('strong');name.textContent=p.name;info.append(name);
+      if(p.sku){const code=panelDoc.createElement('small');code.textContent=p.sku;info.append(code);}
+      button.append(photo,info);
+      button.onclick=()=>{select.value=p.key;results.hidden=true;status.textContent='Producto seleccionado: '+label;movementPreview();};results.append(button);
+    }
+  }
+  status.hidden=!query;results.hidden=!query||!matches.length;
+  status.textContent=matches.length?matches.length+' productos encontrados'+(matches.length>100?' · Mostrando los primeros 100. Escribe más para afinar la búsqueda.':'. Selecciona una opción.'):'No se encontraron productos. Prueba con otro nombre o código.';
+  select.value=selected?previous:'';movementPreview();
+}
+function selectedMovementProduct(){return movementProducts.find(p=>p.key===$('desktopMovementProduct').value);}
+function movementPreview(){
+  const product=selectedMovementProduct(),quantity=Number($('desktopMovementQuantity').value),kind=$('desktopMovementType').value;
+  $('desktopMovementSave').textContent=kind==='in'?'Registrar entrada':'Registrar salida';
+  $('desktopMovementSave').dataset.actionTone=kind==='in'?'confirm':'danger';
+  if(!movementDetail||movementDetail.run.status!=='open'){$('desktopMovementPreview').textContent='Selecciona un inventario abierto para registrar movimientos. Los inventarios pausados o cerrados permiten consultar su historial.';return;}
+  const warehouse=$('desktopMovementWarehouse').value;
+  if(!product||!warehouse){$('desktopMovementPreview').textContent='Selecciona el almacén y el producto que entra o sale sin estar ubicado o repartido.';return;}
+  const balance=movementBalances.find(r=>r.warehouse===warehouse&&(product.id?r.productId===product.id:r.name===product.name));
+  const current=balance?.quantity||0,next=Math.round((current+(kind==='in'?quantity:-quantity))*1e8)/1e8;
+  $('desktopMovementPreview').textContent=$('desktopMovementQuantity').value!==''&&Number.isFinite(quantity)&&quantity>0?'Sin ubicar en '+warehouse+': '+current+' → '+next+' unidades. Se reflejará en «No ubicados / repartidos» y en el total del inventario.':'Saldo sin ubicar en '+warehouse+': '+current+' unidades. Ingresa solo las unidades que entran o salen de este apartado.';
+}
+function renderMovementHistory(events){
+  const host=$('desktopMovementHistory');host.replaceChildren();$('desktopMovementHistoryCount').textContent=events.length+' movimientos cargados';
+  if(!events.length){const p=panelDoc.createElement('p');p.className='runs-help';p.textContent='No hay entradas ni salidas registradas en este inventario.';host.append(p);return;}
+  for(const e of events){
+    const card=panelDoc.createElement('article');card.className='admin-change';
+    const lines=[['strong',e.workerName+' · Administrador'],['time',new Date(e.date).toLocaleString('es-PE')],['small',(e.type==='in'?'Entrada +':'Salida −')+e.quantity+' · '+e.name],['p',e.unlocated?e.warehouse+' · No ubicados / repartidos':e.locationLabel+' · Nivel '+e.level],['p',e.unlocated?'Saldo sin ubicar: '+e.beforeCount+' → '+e.afterCount:e.adjusted?'Conteo ajustado: '+e.beforeCount+' → '+e.afterCount:'Pendiente de conteo físico · sin ajuste automático'],['p','Motivo: '+e.reason]];
+    for(const [tag,text] of lines){const line=panelDoc.createElement(tag);line.textContent=text;card.append(line);}host.append(card);
+  }
+}
+async function loadMovements(){
+  movementReady=false;
+  const generation=++movementLoading;$('desktopMovementSave').disabled=true;$('desktopMovementError').classList.add('hidden');
+  try{
+    const listing=await desktopApi('/api/inventories');if(generation!==movementLoading)return;
+    const select=$('desktopMovementRun'),previous=select.value;
+    select.replaceChildren(...listing.runs.map(r=>new Option((r.month?r.month+' · ':'')+r.title+' · '+({open:'Abierto',paused:'Pausado',closed:'Cerrado',draft:'En preparación'}[r.status]),r.id)));
+    const selected=listing.runs.find(r=>r.id===previous)||listing.runs.find(r=>r.status==='open')||listing.runs[0];
+    select.value=selected?.id||'';
+    if(!selected){movementDetail=null;movementProducts=[];movementBalances=[];$('desktopMovementWarehouse').replaceChildren(new Option('Sin inventario abierto',''));fillMovementProducts();renderMovementHistory([]);movementPreview();return;}
+    await loadMovementRun(generation);
+  }catch(error){if(generation===movementLoading)movementError(error);}
+}
+async function loadMovementRun(generation=++movementLoading){
+  movementReady=false;
+  $('desktopMovementSave').disabled=true;$('desktopMovementError').classList.add('hidden');
+  try{
+    const id=$('desktopMovementRun').value;
+    if(movementDetail?.run.id!==id){
+      movementDetail=null;movementProducts=[];movementBalances=[];
+      $('desktopMovementWarehouse').replaceChildren(new Option('Selecciona el almacén…',''));
+      fillMovementProducts();$('desktopMovementHistory').replaceChildren();
+      $('desktopMovementHistoryCount').textContent='Cargando movimientos…';
+    }
+    const [detail,history]=await Promise.all([desktopApi('/api/inventories/'+id),desktopApi('/api/inventories/'+id+'/movements')]);
+    if(generation!==movementLoading)return;
+    movementDetail=detail;movementBalances=history.balances||[];const select=$('desktopMovementWarehouse'),previous=select.value;
+    const hadDraft=frame.contentWindow.InventoryFormGuard.isDirty($('desktopMovementForm'));
+    const locations=detail.run.locations||frame.contentWindow.desktopInventoryState().locations||[];
+    const warehouses=[...new Set(locations.filter(l=>detail.run.scope==='global'||l.id===detail.run.locationId).map(l=>l.warehouse))];
+    select.replaceChildren(new Option('Selecciona el almacén…',''),...warehouses.map(name=>new Option(name,name)));
+    select.value=previous;
+    movementProducts=frame.contentWindow.desktopInventoryState().products.filter(p=>!p.archived).map(p=>({...p,key:p.id}));
+    for(const row of detail.rows.filter(r=>!r.productId&&!r.retired))movementProducts.push({key:'found-'+row.id,rowId:row.id,id:null,name:row.name,sku:row.sku||''});
+    fillMovementProducts();renderMovementHistory(history.movements);
+    if(!hadDraft)frame.contentWindow.InventoryFormGuard.clean($('desktopMovementForm'));
+    movementReady=true;$('desktopMovementSave').disabled=movementSaving||detail.run.status!=='open';
+  }catch(error){if(generation===movementLoading){$('desktopMovementHistoryCount').textContent='Historial sin actualizar';movementError(error);}}
+}
+function installMovements(){
+  const drawCharts=frame.contentWindow.renderCharts;
+  frame.contentWindow.renderCharts=()=>{if(panelDoc.querySelector('.main-content').getBoundingClientRect().width>0)drawCharts();};
+  // Read the application's lexical state through a closure in its own frame.
+  frame.contentWindow.eval('window.desktopInventoryState=()=>state');
+  $('movementsTitle').tabIndex=-1;
+  $('desktopMovementRun').onchange=()=>{
+    const select=$('desktopMovementRun'),next=select.value,previous=movementDetail?.run.id||'';
+    const change=()=>{select.value=next;movementDetail=null;$('desktopMovementStatus').textContent='';loadMovementRun();};
+    select.value=previous;
+    if(frame.contentWindow.InventoryFormGuard.request(change,{roots:[$('desktopMovementForm')]}))change();
+  };
+  $('desktopMovementWarehouse').onchange=movementPreview;$('desktopMovementSearch').oninput=fillMovementProducts;
+  $('desktopMovementProduct').onchange=movementPreview;
+  $('desktopMovementType').onchange=movementPreview;$('desktopMovementQuantity').oninput=movementPreview;
+  $('desktopMovementReload').onclick=()=>loadMovements();
+  $('desktopMovementForm').onsubmit=async event=>{
+    event.preventDefault();if(movementSaving||!movementReady||!movementDetail)return;
+    const product=selectedMovementProduct();
+    if(!product){movementError(new Error('Selecciona un producto.'));return;}
+    const payload={restoreEpoch:movementDetail.restoreEpoch,productId:product.id,sourceRowId:product.rowId,warehouse:$('desktopMovementWarehouse').value,type:$('desktopMovementType').value,quantity:Number($('desktopMovementQuantity').value),reason:$('desktopMovementReason').value.trim()};
+    const runId=movementDetail.run.id,signature=runId+JSON.stringify(payload);
+    if(signature!==movementSignature){movementSignature=signature;movementOperation=frame.contentWindow.crypto.randomUUID();}
+    movementSaving=true;const done=frame.contentWindow.InventoryFormGuard.beginWork();$('desktopMovementSave').disabled=true;$('desktopMovementError').classList.add('hidden');$('desktopMovementStatus').textContent='';
+    $('desktopMovementForm').querySelectorAll('input,select,#desktopMovementResults button').forEach(control=>control.disabled=true);$('desktopMovementRun').disabled=true;$('desktopMovementReload').disabled=true;
+    try{
+      const result=await desktopApi('/api/inventories/'+runId+'/movements','POST',{...payload,operationId:movementOperation});
+      $('desktopMovementStatus').textContent='Movimiento guardado en '+result.movement.warehouse+'. Saldo sin ubicar: '+result.movement.beforeCount+' → '+result.movement.afterCount+'.';
+      $('desktopMovementQuantity').value='';$('desktopMovementReason').value='';movementSignature=null;movementOperation=null;
+      await loadMovements();frame.contentWindow.InventoryFormGuard.clean($('desktopMovementForm'));frame.contentWindow.refreshState(true).catch(()=>{});
+    }catch(error){movementError(error);}
+    finally{movementSaving=false;$('desktopMovementForm').querySelectorAll('input,select,#desktopMovementResults button').forEach(control=>control.disabled=false);$('desktopMovementRun').disabled=false;$('desktopMovementReload').disabled=false;$('desktopMovementSave').disabled=!movementReady||movementDetail?.run.status!=='open';done();}
+  };
+  const open=()=>{
+    frame.contentWindow.InventoryRuns.close();
+    for(const id of ['productManager','runsPage','warehouseEditor','assignmentWindow'])$(id).classList.add('hidden');
+    panelDoc.body.classList.remove('runs-open');$('desktopMovementStatus').textContent='';showPage('movements');
+    if(typeof frame.contentWindow.setSidebar==='function')frame.contentWindow.setSidebar(false);
+  };
+  const link=$('openMovementFromNav');link.dataset.desktopPage='movements';link.href='#desktop-movements';
+  link.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();open();},true);
+  const button=$('openMovementModal');button.lastChild.textContent=' Entrada / salida';
+  button.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();open();},true);
+}
+function notify(message,error=false){if(!$('notice'))return;$('notice').hidden=false;$('notice').textContent=message;$('notice').classList.toggle('error',error);}
+async function refreshUpdates(){
+  if(!window.pywebview){$('installedRelease').textContent='Abre Inventario.exe para consultar e instalar actualizaciones.';return;}
+  try{const result=await pywebview.api.update_status();$('installedRelease').textContent=`Inventario ${result.release.version} · Compilación ${result.release.build || 'anterior al actualizador'}`;$('lastUpdateResult').textContent=result.last?.message||'Los respaldos se guardan en esta PC.';}
+  catch(error){$('installedRelease').textContent='No se pudo consultar la versión instalada.';}
+}
+async function updateAction(install=false){
+  const choose=$('chooseUpdate'),button=$('installUpdate'),message=$('updateMessage');
+  if(!window.pywebview){message.textContent='Abre Inventario.exe para actualizar.';return;}
+  choose.disabled=true;button.disabled=true;
+  if(!install)$('updatePreview').hidden=true;
+  message.textContent=install?'Preparando el cierre del programa…':'Selecciona el ZIP. La verificación puede tardar unos minutos…';
+  try{const result=await pywebview.api[install?'install_update':'select_update']();
+    message.textContent=result.cancelled?'Operación cancelada.':result.message||'';
+    if(result.release){$('availableRelease').textContent=`Inventario ${result.release.version} · Compilación ${result.release.build}`;$('updateNotes').textContent=result.release.notes;$('updatePreview').hidden=false;}
+  }catch(error){message.textContent='No se pudo completar la actualización. Inténtalo nuevamente.';}
+  finally{choose.disabled=false;button.disabled=false;}
+}
+async function action(name){if(!window.pywebview){notify('Abre Inventario.exe para utilizar las funciones de escritorio.',true);return;}try{const result=await pywebview.api[name]();if(result?.message)notify(result.message,!!result.error);await refresh();}catch(e){notify('No se pudo completar la acción: '+e,true);}}
+async function refresh(){
+  if(checking||!window.pywebview||!$('check'))return;checking=true;$('check').disabled=true;
+  try{const s=await pywebview.api.status();$('vpn').textContent=s.label;$('vpn').className='desktop-badge '+(s.connected?'good':'warn');$('description').textContent=s.message;$('address').textContent=s.url||'Sin dirección disponible';$('copy').hidden=!s.url;$('link').textContent=s.installed?(s.connected?'Abrir Tailscale':'Vincular Tailscale'):'Instalar Tailscale';$('detail').textContent=s.detail;$('server').textContent=s.server?'Servidor activo':'Servidor sin respuesta';$('server').className='desktop-badge '+(s.server?'good':'warn');$('checkedAt').textContent='Última comprobación: '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+  catch(e){notify('No se pudo comprobar la conexión. Vuelve a intentarlo desde Verificación.',true);}finally{checking=false;if($('check'))$('check').disabled=false;}
+}
+// Derive desktop overrides from the existing palette so every panel (including
+// responsive rules and dialogs) follows the theme without changing Android CSS.
+function nightColor(token,kind){
+  const values=token.startsWith('#')?null:token.match(/[\d.]+/g)?.map(Number);
+  let r,g,b,a=1;
+  if(values){[r,g,b]=values;if(values.length>3)a=values[3];}
+  else{let hex=token.slice(1);if(hex.length<5)hex=[...hex].map(c=>c+c).join('');r=parseInt(hex.slice(0,2),16);g=parseInt(hex.slice(2,4),16);b=parseInt(hex.slice(4,6),16);if(hex.length===8)a=parseInt(hex.slice(6,8),16)/255;}
+  r/=255;g/=255;b/=255;const max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min;
+  let light=(max+min)/2,hue=0,saturation=0;
+  if(delta){saturation=delta/(1-Math.abs(2*light-1));hue=max===r?((g-b)/delta)%6:max===g?(b-r)/delta+2:(r-g)/delta+4;hue=(hue*60+360)%360;}
+  if(kind==='background'){
+    if(light<.55)return token;
+    light=.13+(1-light)*.22;
+    if(saturation<.08){hue=215;saturation=.28;}else saturation=Math.min(saturation,.35);
+  }else if(kind==='border'){
+    light=Math.min(light,.30);if(saturation<.08){hue=215;saturation=.22;}
+  }else{light=Math.max(light,.74);saturation=Math.min(saturation,.75);}
+  return `hsla(${hue.toFixed(1)},${(saturation*100).toFixed(1)}%,${(light*100).toFixed(1)}%,${a})`;
+}
+function installTheme(){
+  panelDoc.documentElement.classList.add('desktop-theme-loading');
+  const colors=/#(?:[\da-f]{8}|[\da-f]{6}|[\da-f]{4}|[\da-f]{3})\b|rgba?\([^)]*\)|\b(?:white|black)\b/gi;
+  // Split selector lists only at the top level, preserving :is(), :not() and :has().
+  function themeSelectors(text){
+    const selectors=[];let start=0,depth=0,quote='';
+    for(let i=0;i<text.length;i++){
+      const c=text[i];
+      if(c==='\\'){i++;continue;}
+      if(quote){if(c===quote)quote='';continue;}
+      if(c==='"'||c==="'"){quote=c;continue;}
+      if(c==='('||c==='[')depth++;
+      else if(c===')'||c===']')depth--;
+      else if(c===','&&depth===0){selectors.push(text.slice(start,i));start=i+1;}
+    }
+    selectors.push(text.slice(start));return selectors;
+  }
+  function rulesText(rules){return Array.from(rules).map(rule=>{
+    if(rule.type===CSSRule.MEDIA_RULE)return rule.conditionText.includes('print')?'':`@media ${rule.conditionText}{${rulesText(rule.cssRules)}}`;
+    if(rule.type!==CSSRule.STYLE_RULE)return '';
+    const declarations=[];
+    // CSSOM expands shorthands here. Copy palette properties only: copying
+    // border/outline shorthands also reapplies widths and changes the layout.
+    for(const property of ['background-color','background-image','border-top-color','border-right-color','border-bottom-color','border-left-color','outline-color','color','fill','stroke','accent-color','caret-color']){
+      const kind=property.startsWith('background')?'background':/^(border|outline)/.test(property)?'border':'text';
+      const value=rule.style.getPropertyValue(property);
+      if(!value)continue;
+      let mapped=value.replace(colors,token=>nightColor(token==='white'?'#ffffff':token==='black'?'#000000':token,kind));
+      if(kind==='text')mapped=mapped.replace(/var\(--brand(?:-dark)?\)/g,'#79dfc8');
+      if(value!==mapped)declarations.push(`${property}:${mapped}${rule.style.getPropertyPriority(property)?' !important':''}`);
+    }
+    if(!declarations.length)return '';
+    const selectors=themeSelectors(rule.selectorText).map(selector=>{
+      selector=selector.trim();
+      if(selector.startsWith(':root'))return selector.replace(':root','html[data-desktop-theme="dark"]');
+      if(/^html(?=[\s.:#>\[]|$)/.test(selector))return selector.replace(/^html/,'html[data-desktop-theme="dark"]');
+      return `:where(html[data-desktop-theme="dark"]) ${selector}`;
+    });
+    return `${selectors.join(',')}{${declarations.join(';')}}`;
+  }).join('');}
+  const style=panelDoc.createElement('style');style.id='desktopNightStyles';
+  style.textContent=Array.from(panelDoc.styleSheets).map(sheet=>rulesText(sheet.cssRules)).join('')+`
+    html[data-desktop-theme="light"]{--bg:#e3eaf0;--ink:#24334a;--muted:#566b80;--line:#b8c8d5;--surface:#f3f6f8;--surface-soft:#e5edf3;
+      --action-info-bg:#d7e5fa;--action-info-border:#8baad2;--action-neutral-bg:#dfe8ef;--action-neutral-border:#a6bacb;
+      --action-add-bg:#d2eade;--action-add-border:#79b59c;--action-warning-bg:#ffe8b4;--action-warning-border:#bd9746;--action-assist-bg:#e5d9f5;--action-assist-border:#b499d4;}
+    html[data-desktop-theme="light"] body,html[data-desktop-theme="light"] .runs-page{background:var(--bg);}
+    html[data-desktop-theme="light"] :is(.panel,.monthly-panel,.runs-create,.run-place-panel,.desktop-card,.shelf-level-card){background:var(--surface);border-color:var(--line);box-shadow:0 2px 6px #263d5010;}
+    html[data-desktop-theme="light"] :is(.report-company-card,.runs-audit article,#workersWindow .worker-item,#workersWindow #workerForm){background:#e5edf3;border-color:#afc2d2;}
+    html[data-desktop-theme="light"] :is(.topbar,.window-titlebar){background:#e8eff4;border-color:#b8c8d5;}
+    html[data-desktop-theme="light"] :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){background:#f9fbfc;border-color:#9eafbf;color:#24334a;}
+    html[data-desktop-theme="light"] :is(input,textarea)::placeholder{color:#62768a;opacity:1;}
+    html[data-desktop-theme="light"] :is(.muted-note,.page-heading p:last-child,.runs-help){color:#52677b;}
+    html[data-desktop-theme="light"] :is(.runs-connection,.runs-picked,.review-summary){background:#d7eade;border-color:#91b9a2;color:#24543e;}
+    html[data-desktop-theme="light"] :is(.runs-table,.finding-review-card,.finding-card).run-found-row,html[data-desktop-theme="light"] .runs-table tr.run-found-row{background:#d8eee3;}
+    html[data-desktop-theme="light"] .runs-table tr.run-uncatalogued-row{background:#e8ddf7;}
+    html[data-desktop-theme="light"] .runs-table tr.run-retirement-pending{background:#f8dce1;}
+    html[data-desktop-theme="dark"]{color-scheme:dark;--bg:#121c29;--ink:#e0e8f2;--muted:#a7b6ca;--line:#34465b;--brand:#168c78;--brand-dark:#0c7160;--red:#f29ca5;--surface:#1c293a;--surface-soft:#202f42}
+    html[data-desktop-theme] .editor-company-card{background:var(--surface);border-color:var(--line);color:var(--ink);}
+    html[data-desktop-theme] .editor-company-card.is-selected{background:var(--surface-soft);border-color:var(--brand);box-shadow:inset 3px 0 0 var(--brand);}
+    html[data-desktop-theme] .editor-company-bar .is-selected .editor-company-select{color:var(--ink)!important;}
+    html[data-desktop-theme] .editor-company-card.is-selected .editor-company-settings{color:var(--ink);}
+    html[data-desktop-theme] .editor-company-settings:hover{background:var(--surface-soft)!important;}
+    html[data-desktop-theme] :is(.editor-company-caption strong,.assignment-company-tab strong,.report-company-card strong){text-transform:uppercase;font-size:16px;font-weight:800;letter-spacing:.04em;line-height:1.45;overflow-wrap:anywhere;}
+    html[data-desktop-theme] #adminWarehouseTabs{background:var(--surface-soft);}
+    html[data-desktop-theme] #adminWarehouseTabs button{color:var(--ink);}
+    html[data-desktop-theme] #adminWarehouseTabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-color:var(--brand);box-shadow:inset 0 -2px 0 var(--brand);}
+    .desktop-theme-toggle{display:inline-grid;align-items:center;justify-content:center;min-height:36px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:11px;font-weight:600;white-space:nowrap}
+    .desktop-theme-toggle [data-theme-target]{grid-area:1/1;opacity:0;transition:opacity 180ms ease;}
+    html:not([data-desktop-theme="dark"]) .desktop-theme-toggle [data-theme-target="dark"],html[data-desktop-theme="dark"] .desktop-theme-toggle [data-theme-target="light"]{opacity:1;}
+    html[data-desktop-theme] input::file-selector-button{font:inherit;padding:2px 8px;margin-inline-end:8px;border:1px solid var(--action-info-border);border-radius:5px;background-color:var(--action-info-bg);color:var(--action-info-ink);cursor:pointer;transition:background-color 180ms ease,color 180ms ease,border-color 180ms ease;}
+    html[data-desktop-theme] input::file-selector-button:hover{border-color:var(--brand);}
+    .desktop-theme-toggle:focus-visible{outline:3px solid #58bda8;outline-offset:3px}
+    @media(prefers-reduced-motion:no-preference){
+      html.desktop-theme-changing,html.desktop-theme-changing body,html.desktop-theme-changing body *,html.desktop-theme-changing body *::before,html.desktop-theme-changing body *::after,
+      html.desktop-theme-changing body input::file-selector-button,html.desktop-theme-changing body *::placeholder,html.desktop-theme-changing body *::marker{
+        transition-property:background-color,color,border-color,outline-color,box-shadow,fill,stroke,filter,opacity,accent-color,text-decoration-color,caret-color!important;
+        transition-duration:650ms!important;transition-timing-function:cubic-bezier(.4,0,.2,1)!important;transition-delay:0s!important;
+      }
+    }
+    @media(prefers-reduced-motion:reduce){.desktop-theme-toggle [data-theme-target],html[data-desktop-theme] input::file-selector-button{transition:none;}}
+    html.desktop-theme-loading *,html.desktop-theme-loading *::before,html.desktop-theme-loading *::after{transition:none!important}
+    .login-form-side>.desktop-theme-toggle{align-self:flex-end;margin-bottom:12px}
+    html[data-desktop-theme="dark"] .margin-heat:not(.margin-empty){background-color:color-mix(in srgb,var(--margin-color) 14%,#16212c)!important;color:var(--margin-color)!important;box-shadow:inset 3px 0 0 color-mix(in srgb,var(--margin-color) 65%,#16212c);}
+    html[data-desktop-theme="dark"] .monthly-stats>div{background:#202d3b;box-shadow:inset 0 0 0 1px #3b4e61;}
+    html[data-desktop-theme="dark"] .monthly-stats>div>span{color:#b9cadb;}
+    html[data-desktop-theme="dark"] .monthly-stats>div>strong{color:#f0f5fb;}
+    html[data-desktop-theme="dark"] #monthlyMargin.margin-heat:not(.margin-empty){box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--margin-color) 35%,#16212c);}
+    html[data-desktop-theme="dark"] #stockChart,html[data-desktop-theme="dark"] #categoryChart{filter:invert(1) hue-rotate(180deg)}
+    html[data-desktop-theme="dark"] .admin-undo-notice::before{background:#0b2530;}
+    html[data-desktop-theme="dark"] .admin-undo-notice::after{background:linear-gradient(90deg,#55edc3,#ceffe9);box-shadow:0 -1px 0 #ceffe9;}
+    html[data-desktop-theme="dark"] body.worker-mode{--ink:#e0e8f2;--muted:#a7b6ca;--line:#34465b}
+    html[data-desktop-theme="dark"] .desktop-movement-results .product-photo{background:#fff;color:#7c8986}
+    html[data-desktop-theme="dark"] .runs-table tr.run-found-row,
+    html[data-desktop-theme="dark"] .finding-review-card.run-found-row,
+    html[data-desktop-theme="dark"] .finding-card.run-found-row{background:#17352b}
+    html[data-desktop-theme="dark"] .runs-table tr.run-uncatalogued-row,
+    html[data-desktop-theme="dark"] .finding-review-card.run-uncatalogued-row,
+    html[data-desktop-theme="dark"] .finding-card.run-uncatalogued-row{background:#2b2340}
+    html[data-desktop-theme="dark"] .runs-table tr.run-uncatalogued-row td:first-child,
+    html[data-desktop-theme="dark"] .finding-review-card.run-uncatalogued-row,
+    html[data-desktop-theme="dark"] .finding-card.run-uncatalogued-row{border-left-color:#ac83e8}
+    html[data-desktop-theme="dark"] .runs-table tr.run-retirement-pending,
+    html[data-desktop-theme="dark"] #adminSpaceTabs.run-place-grid button.run-retirement-pending,
+    html[data-desktop-theme="dark"] .finding-review-card.run-retirement-pending,
+    html[data-desktop-theme="dark"] .finding-card.run-retirement-pending{background:#402429;border-color:#c66572}
+    html[data-desktop-theme="dark"] .runs-table tr.run-retirement-pending td:first-child{border-left:4px solid #c66572}
+    html[data-desktop-theme="dark"] .run-uncatalogued-row .run-found-badge{background:#44325f;color:#dec5ff}
+    html[data-desktop-theme="dark"] .run-retirement-pending .run-found-badge{background:#5c303a;color:#ffc5cd}
+    #desktopSettings .desktop-movement-history{background:var(--surface);color:var(--ink);border-color:var(--line)}
+    #desktopSettings .desktop-movement-history .runs-audit-heading{margin:0 0 12px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+    #desktopMovementHistoryCount{font-size:12px;color:var(--muted)}
+    #desktopMovementHistory{margin-top:16px}
+    #desktopSettings #desktopMovementHistory article{padding:16px;border:1px solid var(--line);border-left:4px solid #ce993c;border-radius:12px;display:grid;gap:7px}
+    #desktopSettings #desktopMovementHistory article p{margin:0;font-size:12px;line-height:1.7}
+    #desktopSettings #desktopMovementHistory time{font-size:11px;color:var(--muted)}
+    #desktopSettings #desktopMovementResults{grid-auto-rows:minmax(86px,auto);align-content:start;gap:8px}
+    #desktopSettings #desktopMovementResults button{height:auto!important;min-height:86px!important;padding:10px 12px;overflow:hidden}
+    #desktopSettings #desktopMovementResults .product-photo{width:62px;height:62px;min-height:62px;align-self:center;overflow:hidden}
+    html:has(body.runs-open),body.runs-open{overflow:hidden}
+    body:not(.worker-mode) .runs-page{top:var(--desktop-topbar-bottom,127px)}
+    @media(max-width:1100px){.top-actions{gap:9px}.top-actions .today-label{display:none}}
+    @media print{.desktop-theme-toggle{display:none!important}}
+  `;
+  panelDoc.head.append(style);
+  const topbar=panelDoc.querySelector('.topbar');
+  if(topbar){
+    const syncTopbar=()=>{const bottom=topbar.getBoundingClientRect().bottom;if(bottom>0)panelDoc.documentElement.style.setProperty('--desktop-topbar-bottom',bottom+'px');};
+    new frame.contentWindow.ResizeObserver(syncTopbar).observe(topbar);
+    frame.contentWindow.addEventListener('scroll',syncTopbar,{passive:true});
+    frame.contentWindow.addEventListener('resize',syncTopbar);
+    syncTopbar();
+  }
+  for(const selector of ['.login-form-side','.top-actions']){
+    const container=panelDoc.querySelector(selector);if(!container)continue;
+    const button=panelDoc.createElement('button');button.type='button';button.className='desktop-theme-toggle';button.dataset.actionTone='neutral';
+    for(const [target,label] of [['dark','\u263e Modo nocturno'],['light','\u2600 Modo diurno']]){
+      const text=panelDoc.createElement('span');text.dataset.themeTarget=target;text.textContent=label;text.setAttribute('aria-hidden','true');button.append(text);
+    }
+    button.addEventListener('click',()=>{desktopTheme=desktopTheme==='dark'?'light':'dark';try{localStorage.setItem('inventario.desktop.theme',desktopTheme);}catch(e){}applyTheme(true);});
+    container.prepend(button);
+  }
+  applyTheme();
+  // Settle the saved palette before showing the frame; subsequent toggles animate.
+  void panelDoc.documentElement.offsetWidth;
+  frame.contentWindow.requestAnimationFrame(()=>panelDoc.documentElement.classList.remove('desktop-theme-loading'));
+}
+let desktopThemeTimer;
+function applyTheme(animate=false){
+  const roots=[document.documentElement,panelDoc.documentElement];
+  const gradual=animate&&!matchMedia('(prefers-reduced-motion:reduce)').matches;
+  clearTimeout(desktopThemeTimer);
+  const theme=desktopTheme;
+  const updatePalette=()=>{
+    roots.forEach(root=>root.dataset.desktopTheme=theme);
+    panelDoc.querySelectorAll('.desktop-theme-toggle').forEach(button=>{
+      button.setAttribute('aria-label',theme==='dark'?'Activar modo diurno':'Activar modo nocturno');
+      button.setAttribute('aria-pressed',String(theme==='dark'));
+      button.title=theme==='dark'?'Cambiar a colores claros':'Cambiar a colores oscuros';
+    });
+  };
+  // Animate colors in place. Root view snapshots can move fixed/sticky layers
+  // and scrollbar gutters while their old and new images are composited.
+  roots.forEach(root=>root.classList.toggle('desktop-theme-changing',gradual));
+  if(gradual){
+    // Settle the current colors before changing either document's palette.
+    // A second click reverses the active transition from its current colors.
+    void getComputedStyle(document.body).backgroundColor;
+    void frame.contentWindow.getComputedStyle(panelDoc.body).backgroundColor;
+  }
+  updatePalette();
+  // Restore the usual short hover/focus transitions after the palette settles.
+  if(gradual)desktopThemeTimer=setTimeout(()=>roots.forEach(root=>root.classList.remove('desktop-theme-changing')),750);
+}
+function installModuleHome(){
+  const nav=panelDoc.querySelector('.side-nav'),main=panelDoc.querySelector('.main-column');
+  const home=panelDoc.createElement('section');home.id='desktopHome';home.hidden=true;
+  home.innerHTML='<div class="module-context"><strong>ADMINISTRACIÓN</strong><span>Mi espacio de trabajo</span></div><div class="module-grid" aria-label="Módulos del inventario"></div>';
+  main.append(home);
+  const entry=panelDoc.createElement('a');entry.href='#desktop-home';entry.id='desktopHomeLink';
+  entry.innerHTML='<svg class="icon" aria-hidden="true"><use href="#i-grid"></use></svg><span>Inicio</span>';
+  nav.prepend(entry);
+  const closeHome=()=>{home.hidden=true;panelDoc.body.classList.remove('desktop-home-open');};
+  function openHome(){
+    if(panelDoc.body.classList.contains('worker-mode'))return;
+    if(window.loadWorkspace){showPage('hub-home');return;}
+    showPage(null);
+    const grid=home.querySelector('.module-grid');grid.replaceChildren();
+    const destinations=[...nav.querySelectorAll('a,button')].filter(link=>link!==entry&&link.getClientRects().length&&!link.classList.contains('native-settings'));
+    destinations.forEach((link,index)=>{
+      const card=panelDoc.createElement('button');card.type='button';card.className='module-card';
+      const number=panelDoc.createElement('small');number.textContent=index+1;number.setAttribute('aria-hidden','true');
+      const icon=link.querySelector('svg')?.cloneNode(true),label=panelDoc.createElement('strong');
+      label.textContent=link.querySelector('span:not(.nav-count)')?.textContent||link.textContent.trim();
+      card.append(number);if(icon)card.append(icon);card.append(label);
+      card.onclick=()=>{closeHome();link.click();};grid.append(card);
+    });
+    home.hidden=false;panelDoc.body.classList.add('desktop-home-open');
+    nav.querySelectorAll('a').forEach(link=>{link.classList.toggle('active',link===entry);if(link===entry)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+    panelDoc.querySelector('.breadcrumb strong').textContent='Administración';
+    frame.contentWindow.setSidebar?.(false);frame.contentWindow.scrollTo(0,0);
+  }
+  nav.addEventListener('click',event=>{
+    const link=event.target.closest('a,button');if(!link)return;
+    if(link===entry){event.preventDefault();event.stopImmediatePropagation();openHome();}else closeHome();
+  },true);
+  let loggedIn=!$('appShell').classList.contains('hidden');
+  new MutationObserver(()=>{
+    const next=!$('appShell').classList.contains('hidden');
+    if(next&&!loggedIn)openHome();else if(!next)closeHome();loggedIn=next;
+  }).observe($('appShell'),{attributes:true,attributeFilter:['class']});
+  const style=panelDoc.createElement('style');
+  style.textContent=`
+    html[data-desktop-theme="light"]{--bg:#f2f3f8;--surface:#fff;--line:#d1d3dc;--ink:#2c3038;--muted:#6a7180;--brand:#3955bc;--brand-dark:#2d4399}
+    html[data-desktop-theme] #sideRail{width:252px;background:#344fb5;padding:20px 10px 0}
+    html[data-desktop-theme] .main-column{margin-left:252px}
+    html[data-desktop-theme] #sideRail .side-brand{margin-bottom:26px;color:white}
+    html[data-desktop-theme] #sideRail .brand-dot{color:#b9d7ff}
+    html[data-desktop-theme] #sideRail .workspace-switch{background:#4964ca;border:0;border-radius:7px;padding:14px 10px;margin-bottom:22px}
+    html[data-desktop-theme] #sideRail .workspace-switch :is(strong,span,.icon){color:white}
+    html[data-desktop-theme] #sideRail .side-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:7px;overflow-y:auto;padding:3px 3px 12px;scrollbar-color:#8298ec transparent}
+    html[data-desktop-theme] #sideRail .nav-group{display:contents}
+    html[data-desktop-theme] #sideRail .nav-label{display:none}
+    html[data-desktop-theme] #sideRail .side-nav :is(a,button){flex-direction:column;justify-content:center;gap:5px;min-height:78px;padding:9px 5px;background:#4965ca;color:#fff;border:1px solid transparent;border-radius:7px;text-align:center;font-size:12px;line-height:1.2;font-weight:600;box-shadow:none;position:relative}
+    html[data-desktop-theme] #sideRail .side-nav .icon{width:24px;height:24px;flex:0 0 24px}
+    html[data-desktop-theme] #sideRail .side-nav #openRunsAdmin{background:#697640}
+    html[data-desktop-theme] #sideRail .side-nav #openMovementFromNav{background:#087d68}
+    html[data-desktop-theme] #sideRail .side-nav #openProductManager{background:#00847c}
+    html[data-desktop-theme] #sideRail .side-nav #openWarehouseEditor{background:#1478bd}
+    html[data-desktop-theme] #sideRail .side-nav #openAssignmentsAdmin{background:#ac306d}
+    html[data-desktop-theme] #sideRail .side-nav #openWorkers{background:#8a29a4}
+    html[data-desktop-theme] #sideRail .side-nav a[href="#analyticsPanel"]{background:#537c2c}
+    html[data-desktop-theme] #sideRail .side-nav #openHistoryFromNav{background:#9f6220}
+    html[data-desktop-theme] #sideRail .side-nav [data-desktop-page="connections"]{background:#087b91}
+    html[data-desktop-theme] #sideRail .side-nav :is(a,button):hover{filter:brightness(1.13)}
+    html[data-desktop-theme] #sideRail .side-nav a.active{outline:2px solid white;outline-offset:-3px;border-color:#263463;box-shadow:inset 0 0 0 3px #263463}
+    html[data-desktop-theme] #sideRail .side-nav :is(a,button):focus-visible{outline:3px solid #ffe58c;outline-offset:-3px}
+    html[data-desktop-theme] #sideRail .nav-count{position:absolute;top:5px;right:5px;margin:0;background:#ffffff26;font-size:10px}
+    html[data-desktop-theme] #sideRail .sidebar-bottom{padding-top:6px}
+    html[data-desktop-theme] #sideRail .sidebar-bottom :is(button,strong,span){color:#fff}
+    html[data-desktop-theme] #sideRail :is(.side-nav,.sidebar-bottom) button{font-size:14px}
+    html[data-desktop-theme] #workersWindow.personnel-page{height:calc(100dvh - var(--desktop-topbar-bottom,73px));overflow:auto;padding:28px 34px;background:var(--bg)}
+    html[data-desktop-theme="light"] .topbar{background:#fff;border-color:#d9deef;min-height:54px}
+    html[data-desktop-theme] body.desktop-home-open .main-column>:not(.topbar):not(#desktopHome){display:none!important}
+    #desktopHome .module-context{display:flex;gap:26px;align-items:center;padding:13px 28px;border-bottom:1px solid var(--line);background:var(--surface);font-size:12px;color:var(--muted)}
+    #desktopHome .module-context span{border-left:1px solid var(--line);padding-left:26px}
+    #desktopHome .module-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 28px;padding:28px 26px}
+    #desktopHome .module-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:114px;padding:22px 16px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);cursor:pointer}
+    #desktopHome .module-card small{position:absolute;top:9px;left:12px;color:var(--muted);font-size:11px}
+    #desktopHome .module-card .icon{width:29px;height:29px;color:#4362bf}
+    #desktopHome .module-card:nth-child(3n+2) .icon{color:#158675}
+    #desktopHome .module-card:nth-child(3n) .icon{color:#b47722}
+    #desktopHome .module-card:hover{border-color:#627ed3;box-shadow:0 3px 12px #344fb515}
+    #desktopHome .module-card:focus-visible{outline:3px solid #627ed3;outline-offset:3px}
+    html[data-desktop-theme="dark"] #desktopHome .module-card .icon{color:#a8c0ff}
+    @media(max-width:1200px){#desktopHome .module-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:24px}}
+    @media(max-width:900px){#desktopHome .module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:760px){html[data-desktop-theme] .main-column{margin-left:0}#desktopHome .module-grid{padding:18px;gap:12px}#desktopHome .module-context{padding:14px 18px;gap:12px}}
+  `;
+  panelDoc.head.append(style);
+}
+function installSections(){
+  panelDoc=frame.contentDocument;const nav=panelDoc.querySelector('.side-nav'),main=panelDoc.querySelector('.main-column');if(!nav||!main||$('desktopSettings'))return;
+  panelDoc.head.append(document.getElementById('settingsStyles').content.cloneNode(true));main.append(document.getElementById('settingsTemplate').content.cloneNode(true));
+  // These are workspace sections, sharing the header and navigation with settings.
+  for(const id of ['productManager','runsPage','warehouseEditor','assignmentWindow'])main.append($(id));
+  const runControls=panelDoc.createElement('div');runControls.className='desktop-run-controls';
+  const controlLabel=panelDoc.createElement('span');controlLabel.textContent='Control del inventario';
+  runControls.append(controlLabel,$('managementPause'),$('managementClose'),$('managementDelete'));$('managementActive').append(runControls);
+  const support=panelDoc.createElement('div');support.className='desktop-management-support';
+  $('runsPage').append(support);support.append($('runsPeoplePanel'),$('backupsPanel'));
+  const backupInfo=panelDoc.createElement('details');backupInfo.className='desktop-backup-info';
+  const backupSummary=panelDoc.createElement('summary');backupSummary.textContent='Qué incluyen las copias automáticas';
+  const backupDescription=$('backupsPanel').querySelector(':scope>p');
+  backupDescription.before(backupInfo);backupInfo.append(backupSummary,backupDescription,$('backupsFolder'));
+  const assignmentNotice=$('assignmentWindow').querySelector('.assignment-notice');
+  const noticeCopy=assignmentNotice.querySelector('p'),noticeTitle=noticeCopy.querySelector('strong');
+  const noticeDetails=panelDoc.createElement('details'),noticeSummary=panelDoc.createElement('summary');
+  noticeSummary.textContent=noticeTitle.textContent;noticeTitle.remove();noticeCopy.querySelector('br')?.remove();
+  assignmentNotice.append(noticeDetails);noticeDetails.append(noticeSummary,noticeCopy);
+  const editorHeading=$('warehouseEditor').querySelector('.editor-navigation');
+  editorHeading.firstElementChild.append(editorHeading.nextElementSibling);
+  const managerHeading=$('productManager').querySelector('.window-titlebar');
+  for(const heading of panelDoc.querySelectorAll('.page-heading,.runs-heading,.desktop-heading,#warehouseEditor>.editor-navigation,#productManager>.window-titlebar')){
+    heading.classList.add('office-heading');
+    let copy=heading.querySelector(':scope>div');
+    if(heading.classList.contains('desktop-heading')){copy=panelDoc.createElement('div');copy.append(...heading.childNodes);heading.append(copy);}
+    if(!copy?.classList.contains('manager-heading-actions'))copy?.classList.add('office-heading-copy');
+  }
+  const sectionsObserver=new MutationObserver(syncSections);
+  for(const id of ['productManager','runsPage','warehouseEditor','assignmentWindow','workersWindow','appShell'])sectionsObserver.observe($(id),{attributes:true,attributeFilter:['class']});
+  const editorBack=$('warehouseEditorClose');
+  const syncEditorBack=()=>editorBack.classList.toggle('desktop-editor-root',editorBack.textContent.includes('Gestión'));
+  new MutationObserver(syncEditorBack).observe(editorBack,{childList:true,characterData:true,subtree:true});syncEditorBack();
+  for(const [page,label,icon] of [['connections','Conexiones','i-connection'],['verification','Verificación','i-target'],['updates','Actualizaciones','i-history']]){
+    const link=panelDoc.createElement('a');link.href='#desktop-'+page;link.dataset.desktopPage=page;link.innerHTML=`<svg class="icon" aria-hidden="true"><use href="#${icon}"></use></svg><span>${label}</span>`;$('navAdmin').append(link);
+  }
+  nav.addEventListener('click',event=>{const link=event.target.closest('a,button');if(!link)return;if(link.dataset.desktopPage){event.preventDefault();showPage(link.dataset.desktopPage);if(typeof frame.contentWindow.setSidebar==='function')frame.contentWindow.setSidebar(false);}else if(currentPage)showPage(null);});
+  $('connectionsTitle').tabIndex=-1;$('verificationTitle').tabIndex=-1;$('updatesTitle').tabIndex=-1;
+  $('chooseUpdate').onclick=()=>updateAction();$('installUpdate').onclick=()=>updateAction(true);
+  $('check').onclick=refresh;$('link').onclick=()=>action('connect_vpn');$('configure').onclick=()=>action('configure_remote');$('apk').onclick=()=>action('show_apk');$('copy').onclick=()=>action('copy_address');
+  new MutationObserver(()=>{if($('appShell').classList.contains('hidden')&&currentPage)showPage(null);}).observe($('appShell'),{attributes:true,attributeFilter:['class']});
+  installMovements();installTheme();installModuleHome();installWorkspace();syncSections();frame.style.visibility='visible';
+  refresh();
+}
+frame.addEventListener('load',installSections);if(frame.contentDocument?.readyState==='complete')installSections();
+addEventListener('pywebviewready',refresh);setInterval(refresh,10000);
+</script>
+</body></html>
