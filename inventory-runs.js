@@ -1469,7 +1469,7 @@ window.InventoryRuns = (() => {
   };
   let warehouseDraft=[],companyDraft=[],editorCompany=null,layoutRevision=0,editorWarehouse=null,editorSavedDraft=null,editorSaving=false;
   let editorOwner=null,editorRecovery=null,editorStorageError=false,editorQuery='',editorView='cards';
-  const editorDeleted=[],editorSelections=new WeakMap();
+  const editorDeleted=[];
   const draftKey=()=> 'inventory-structure-draft-v1-'+editorOwner;
   function persistEditorDraft(){
     if(!editorOwner||editorOwner!==state.user?.id||editorSavedDraft===null||editorRecovery)return;
@@ -1664,39 +1664,6 @@ window.InventoryRuns = (() => {
   function editorActionIcon(control,path){
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('editor-action-icon');svg.innerHTML=path;control.prepend(svg);return control;
   }
-  function editorBulkTools(warehouse,space,section){
-    let selected=editorSelections.get(space);if(!selected){selected=new Set();editorSelections.set(space,selected);}
-    for(const product of selected)if(!space.products.includes(product))selected.delete(product);
-    const bar=node('div',undefined,'editor-bulk-tools');bar.dataset.unsavedIgnore='';
-    const count=node('strong'),all=button('Seleccionar todos',()=>{space.products.forEach(p=>selected.add(p));sync();}),clear=button('Limpiar selección',()=>{selected.clear();sync();});
-    const destination=node('select');destination.id='editorMoveDestination';
-    const targets=[];
-    warehouseDraft.filter(w=>w.empresa_id===warehouse.empresa_id).forEach(w=>w.spaces.forEach(s=>{targets.push(s);destination.append(new Option(w.name+' / '+s.name,String(targets.length-1)));if(s===space)destination.value=String(targets.length-1);}));
-    destination.value=String(targets.indexOf(space));
-    const destLabel=node('label','Espacio de destino');destLabel.append(destination);
-    const level=node('input');level.id='editorMoveLevel';level.maxLength=40;level.placeholder='Ej.: 2';level.setAttribute('aria-label','Nivel de destino');
-    const levelLabel=node('label','Nivel de destino');levelLabel.append(level);
-    const error=node('p',undefined,'form-error hidden');error.setAttribute('role','alert');
-    const move=button('Mover seleccionados',()=>{
-      error.classList.add('hidden');const target=targets[Number(destination.value)],targetLevel=level.value.trim();
-      if(!selected.size||!target||!targetLevel){error.textContent='Selecciona productos, espacio y nivel de destino.';error.classList.remove('hidden');return;}
-      const items=space.products.filter(p=>selected.has(p));
-      const key=p=>p.productId?'id:'+p.productId:'name:'+normalizeText(p.name).trim();
-      const occupied=new Set(target.products.filter(p=>!selected.has(p)&&String(p.level)===targetLevel).map(key));
-      for(const p of items){if(!p.name.trim()){error.textContent='Completa el producto vacío antes de moverlo.';error.classList.remove('hidden');return;}if(occupied.has(key(p))){error.textContent='El nivel de destino ya contiene uno de los productos seleccionados. No se movió ningún producto.';error.classList.remove('hidden');return;}occupied.add(key(p));}
-      if(target!==space){space.products=space.products.filter(p=>!selected.has(p));target.products.push(...items);}
-      items.forEach(p=>p.level=targetLevel);selected.clear();
-      let opened=editorOpenLevels.get(target);if(!opened){opened=new Set();editorOpenLevels.set(target,opened);}opened.add(targetLevel);
-      renderEditor();toast(items.length+' productos trasladados. Guarda la estructura para aplicar el cambio.');
-    },'primary-button');move.id='editorMoveProducts';
-    function sync(){count.textContent=selected.size+' seleccionados';move.disabled=!selected.size;clear.disabled=!selected.size;all.disabled=!space.products.length||selected.size===space.products.length;section.querySelectorAll('.editor-product').forEach(row=>{const checked=selected.has(row._product);row.classList.toggle('is-selected',checked);const input=row.querySelector('.editor-product-select');if(input)input.checked=checked;});}
-    all.dataset.actionTone='neutral';clear.dataset.actionTone='neutral';
-    editorActionIcon(move,'<path d="M4 12h16m-6-6 6 6-6 6"/>');
-    const selectionHeader=node('div',undefined,'editor-selection-header');selectionHeader.append(count,all,clear);
-    const transferFields=node('div',undefined,'editor-transfer-fields');transferFields.append(destLabel,levelLabel,move);
-    bar.append(selectionHeader,transferFields,error);section.append(bar);sync();
-    return {selected,sync};
-  }
   function renderEditor(){
     if(editorWarehouse!==null&&!warehouseDraft[editorWarehouse])editorWarehouse=null;
     const selectedWarehouse=editorWarehouse===null?null:warehouseDraft[editorWarehouse];
@@ -1813,7 +1780,6 @@ window.InventoryRuns = (() => {
         const remove=button('Eliminar espacio',()=>removeEditorSpace(warehouse,space),'ghost-button worker-delete');
         editorActionIcon(remove,'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>');
         top.append(identity,remove);section.append(top);
-        const selection=editorBulkTools(warehouse,space,section);
         let openLevels=editorOpenLevels.get(space);if(!openLevels){openLevels=new Set();editorOpenLevels.set(space,openLevels);}
         const addProduct=level=>{const product={name:'',level};space.products.push(product);openLevels.add(level);renderEditor();const row=[...body.querySelectorAll('.editor-product')].find(row=>row._product===product);row?.querySelector('.editor-product-picker input')?.focus();};
         const levels=[...new Set(space.products.map(product=>String(product.level)))].sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
@@ -1830,8 +1796,6 @@ window.InventoryRuns = (() => {
         levelProducts.forEach((product,li)=>{
           const pi=space.products.indexOf(product),previous=space.products.indexOf(levelProducts[li-1]),next=space.products.indexOf(levelProducts[li+1]);
           const row=node('div',undefined,'editor-product');row._product=product;row.setAttribute('role','listitem');
-          const selectProduct=node('input');selectProduct.type='checkbox';selectProduct.className='editor-product-select';selectProduct.checked=selection.selected.has(product);selectProduct.setAttribute('aria-label','Seleccionar '+(product.name||'producto'));selectProduct.onchange=()=>{if(selectProduct.checked)selection.selected.add(product);else selection.selected.delete(product);selection.sync();};
-          row.classList.toggle('is-selected',selectProduct.checked);
           const handle=button('⋮⋮',()=>{},'ghost-button editor-drag-handle','neutral');handle.draggable=true;handle.title='Arrastrar para ordenar';handle.setAttribute('aria-label','Mover '+(product.name||'producto')+' (Alt + flecha arriba o abajo)');
           handle.onkeydown=e=>{if(e.altKey&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();moveEditorProduct(space,product,e.key==='ArrowUp'?previous:next);}};
           handle.ondragstart=e=>{draggedProduct={space,product};e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(pi));row.classList.add('is-dragging');};
@@ -1842,8 +1806,7 @@ window.InventoryRuns = (() => {
           const options=node('div',undefined,'editor-product-actions');const up=button('↑',()=>moveEditorProduct(space,product,previous));up.disabled=li===0;up.setAttribute('aria-label','Subir producto');const down=button('↓',()=>moveEditorProduct(space,product,next));down.disabled=li===levelProducts.length-1;down.setAttribute('aria-label','Bajar producto');options.append(up,down,button('Quitar',()=>{space.products.splice(space.products.indexOf(product),1);renderEditor();},'ghost-button worker-delete'));
           const levelField=editorInput(product.level,'Nivel',v=>product.level=v);
           levelField.querySelector('input').onchange=()=>{product.level=product.level.trim()||level;openLevels.add(String(product.level));renderEditor();};
-          const rowTools=node('div',undefined,'editor-row-tools');rowTools.append(selectProduct,handle);
-          row.append(rowTools,editorProductPicker(product),levelField,node('span','Por contar','editor-count-status'),options);productList.append(row);
+          row.append(handle,editorProductPicker(product),levelField,node('span','Por contar','editor-count-status'),options);productList.append(row);
         });
           if(!levelProducts.length)productList.append(node('p','Todavía no hay productos en este nivel.','shelf-level-empty'));
           content.append(button('+ Agregar producto',()=>addProduct(level),'ghost-button','add'));

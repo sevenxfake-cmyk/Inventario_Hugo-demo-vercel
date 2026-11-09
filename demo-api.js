@@ -1,16 +1,10 @@
 /* Public, fictional demo. No production database or credentials are used. */
 (() => {
   'use strict';
-  const KEY = 'inventario-hugo-demo-v1';
+  const KEY = 'inventario-hugo-demo-v2';
   const user = {id:'demo-admin', name:'Hugo Demo', username:'demo', role:'admin', accessRole:'administrator', roleLabel:'Administrador demo'};
   const month = new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Lima',year:'numeric',month:'2-digit'}).format(new Date());
-  function seed() {
-    const empresas = [{id:'demo-andina',name:'Comercial Andina · Demo',image:''},{id:'demo-pacifico',name:'Distribuidora Pacífico · Demo',image:''}];
-    const names = ['Detergente líquido 1 L','Lejía 1 L','Desinfectante 900 ml','Limpiavidrios 500 ml','Jabón líquido 1 L','Esponja multiuso','Escoba de interior','Paño de microfibra','Guantes de limpieza','Pintura blanca 1 gal','Brocha de 2 pulgadas','Rodillo de pintura','Cinta de embalaje','Silicona transparente','Pegamento universal','Lija para madera','Espátula metálica','Sellador acrílico','Aceite de motor 1 L','Refrigerante 1 gal','Limpiaparabrisas 1 L','Cera para autos','Champú para autos','Franela de pulido','Grasa lubricante','Embudo plástico','Cepillo de lavado','Caja organizadora','Bolsa industrial','Precintos plásticos','Cuerda de nylon','Cinta aislante','Candado de acero','Linterna LED','Pilas AA','Cutter de seguridad'];
-    const products = names.map((name,i)=>({id:`demo-p${i+1}`,name,sku:`DEMO-${String(i+1).padStart(3,'0')}`,category:['LIMPIEZA','FERRETERÍA','AUTOMOTRIZ','VARIOS'][Math.floor(i/9)],stock:24+i*3,minStock:10,price:5+i*1.5,image:'',unit:'unidad',revision:1}));
-    const layout = ['Almacén Central','Almacén de Reposición','Almacén Principal','Almacén de Despacho'].map((name,w)=>({name,empresa_id:empresas[Math.floor(w/2)].id,image:'',spaces:Array.from({length:3},(_,s)=>({id:`demo-space-${w}-${s}`,name:`Andamio ${String(s+1).padStart(2,'0')}`,products:products.slice(w*9+s*3,w*9+s*3+3).map((p,l)=>({productId:p.id,name:p.name,sku:p.sku,level:`${l+1}`,evidenceImage:''}))}))}));
-    return {version:1,revision:1,empresas,layout,products,history:[],counts:[]};
-  }
+  function seed() { return window.DemoSeed.create(); }
   const read=()=>{try{return JSON.parse(localStorage.getItem(KEY))||seed();}catch{return seed();}};
   const save=db=>{db.version++;localStorage.setItem(KEY,JSON.stringify(db));};
   const nativeFetch=window.fetch.bind(window);
@@ -24,7 +18,7 @@
     if(path==='/api/login'){if(body.username!=='demo'||body.password!=='demo')return reply({error:'Acceso demo: usuario demo y contraseña demo.'},401);sessionStorage.removeItem('demo-logged-out');return reply({user});}
     if(sessionStorage.getItem('demo-logged-out'))return reply({error:'Inicia sesión con demo / demo.'},401);
     if(path==='/api/session')return reply({user});
-    if(path==='/api/state')return reply({...db,currentMonth:month,locations:db.layout.flatMap(w=>w.spaces.map(s=>({id:s.id,name:s.name,warehouse:w.name,warehouseName:w.name,empresa_id:w.empresa_id}))),inventoryMonths:{[month]:{products:db.products}},workingMonth:month});
+    if(path==='/api/state')return reply(window.DemoSeed.state(db,month));
     if(path==='/api/inventories/layout'){
       if(method==='POST'){
         if(body.expectedRevision!==db.revision)return reply({error:'La estructura cambió en otra pestaña. Vuelve a abrir el editor.'},409);
@@ -34,7 +28,20 @@
       }
       return reply({layout:db.layout,empresas:db.empresas,revision:db.revision});
     }
-    if(path==='/api/inventories'&&method==='GET')return reply({runs:[],workers:[],empresas:db.empresas});
+    if(path==='/api/inventories'&&method==='GET')return reply({runs:window.DemoSeed.details.map(d=>d.run).reverse(),workers:[],empresas:db.empresas});
+    const historyMatch=path.match(/^\/api\/inventories\/(demo-inventory-2026-(?:09|10))(?:\/(.*))?$/);
+    if(historyMatch&&method==='GET'){
+      const detail=window.DemoSeed.details.find(d=>d.run.id===historyMatch[1]);
+      if(!historyMatch[2])return reply(detail);
+      if(historyMatch[2]==='findings')return reply({rows:[],incorporated:[],layout:db.layout,revision:db.revision,runRevision:1});
+      if(historyMatch[2]==='movements')return reply({movements:[],balances:[]});
+    }
+    if(path==='/api/reports/monthly'&&method==='GET'){
+      const detail=window.DemoSeed.details.find(d=>d.run.month===url.searchParams.get('month'));
+      if(!detail)return reply({error:'La demo incluye septiembre y octubre de 2026.'},404);
+      if(url.searchParams.get('format')==='xlsx')return reply({error:'En esta demo descarga los datos desde Reportes → Analítica → Exportar CSV.'},422);
+      return reply({month:detail.run.month,companies:detail.run.empresas,rows:detail.rows,provisional:false});
+    }
     if(path==='/api/inventories/pulse')return reply({ok:true});
     if(path==='/api/backups'&&method==='GET')return reply({enabled:false,activeRun:false,copies:[],folder:'Demo: los cambios se guardan únicamente en este navegador.'});
     if(path==='/api/workers'&&method==='GET')return reply({workers:[],roles:[],permissions:[]});
@@ -52,7 +59,7 @@
   addEventListener('DOMContentLoaded',()=>{
     const style=document.createElement('style');style.textContent='.demo-banner{position:sticky;top:0;z-index:9999;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:8px 12px;background:#fff4ce;color:#604300;font:12px Segoe UI,sans-serif}.demo-banner button{font:inherit;padding:4px 8px;border:1px solid #b99b4b;border-radius:5px;background:white;color:#604300;cursor:pointer}';document.head.append(style);
     const banner=document.createElement('aside');banner.className='demo-banner';banner.setAttribute('aria-label','Información de la demo');
-    const label=document.createElement('span');label.textContent='DEMO · 2 empresas, 4 almacenes, 12 andamios y 36 productos · Cambios solo en este navegador';
+    const label=document.createElement('span');label.textContent='DEMO · '+window.DEMO_CATALOG.length+' productos con fotos · Septiembre y octubre 2026: conteos ficticios · Cambios solo en este navegador';
     const reset=document.createElement('button');reset.textContent='Restablecer demo';reset.onclick=()=>{if(!confirm('¿Restablecer los datos ficticios y descartar tus cambios de esta demo?'))return;localStorage.removeItem(KEY);for(const key of Object.keys(localStorage))if(key.startsWith('inventory-structure-draft-'))localStorage.removeItem(key);sessionStorage.removeItem('demo-logged-out');location.reload();};
     banner.append(label,reset);document.body.prepend(banner);
     document.querySelector('.login-copy').textContent='Acceso de demostración: usuario demo · contraseña demo.';
